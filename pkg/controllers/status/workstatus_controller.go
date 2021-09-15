@@ -120,6 +120,8 @@ func (c *WorkStatusController) syncWorkStatus(key util.QueueKey) error {
 		return fmt.Errorf("invalid key")
 	}
 
+	klog.Infof("[Debug]: Sync Status for key: %s", fedKey.String())
+
 	obj, err := helper.GetObjectFromCache(c.RESTMapper, c.InformerManager, fedKey)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -152,8 +154,9 @@ func (c *WorkStatusController) syncWorkStatus(key util.QueueKey) error {
 		return err
 	}
 
+	restoredObj := restoreNamespace(obj)
 	// consult with version manager if current status needs update.
-	desireObj, err := c.getRawManifest(workObject.Spec.Workload.Manifests, obj)
+	desireObj, err := c.getRawManifest(workObject.Spec.Workload.Manifests, restoredObj)
 	if err != nil {
 		return err
 	}
@@ -171,13 +174,13 @@ func (c *WorkStatusController) syncWorkStatus(key util.QueueKey) error {
 	}
 
 	// compare version to determine if need to update resource
-	needUpdate, err := c.ObjectWatcher.NeedsUpdate(cluster, desireObj, obj)
+	needUpdate, err := c.ObjectWatcher.NeedsUpdate(cluster, desireObj, restoredObj)
 	if err != nil {
 		return err
 	}
 
 	if needUpdate {
-		if err := c.ObjectWatcher.Update(cluster, desireObj, obj); err != nil {
+		if err := c.ObjectWatcher.Update(cluster, desireObj, restoredObj); err != nil {
 			klog.Errorf("Update %s failed: %v", fedKey.String(), err)
 			return err
 		}
@@ -191,7 +194,7 @@ func (c *WorkStatusController) syncWorkStatus(key util.QueueKey) error {
 	}
 
 	klog.Infof("reflecting %s(%s/%s) status to Work(%s/%s)", obj.GetKind(), obj.GetNamespace(), obj.GetName(), workNamespace, workName)
-	return c.reflectStatus(workObject, obj)
+	return c.reflectStatus(workObject, restoredObj)
 }
 
 func (c *WorkStatusController) handleDeleteEvent(key keys.FederatedKey) error {
@@ -249,6 +252,8 @@ func (c *WorkStatusController) recreateResourceIfNeeded(work *workv1alpha1.Work,
 func (c *WorkStatusController) reflectStatus(work *workv1alpha1.Work, clusterObj *unstructured.Unstructured) error {
 	statusMap, _, err := unstructured.NestedMap(clusterObj.Object, "status")
 	if err != nil {
+		// TODO:
+		// log msg change
 		klog.Errorf("Failed to get status field from %s(%s/%s), error: %v", clusterObj.GetKind(), clusterObj.GetNamespace(), clusterObj.GetName(), err)
 		return err
 	}
@@ -337,6 +342,9 @@ func (c *WorkStatusController) getRawManifest(manifests []workv1alpha1.Manifest,
 			manifest.GetName() == clusterObj.GetName() {
 			return manifest, nil
 		}
+
+		klog.Infof("Not Match: manifest namespaceName: %s/%s, clusterObj namespaceName: %s/%s",
+			manifest.GetNamespace(), manifest.GetName(), clusterObj.GetNamespace(), clusterObj.GetName())
 	}
 
 	return nil, fmt.Errorf("no such manifest exist")
@@ -421,4 +429,10 @@ func (c *WorkStatusController) getSingleClusterManager(cluster *v1alpha1.Cluster
 // SetupWithManager creates a controller and register to controller manager.
 func (c *WorkStatusController) SetupWithManager(mgr controllerruntime.Manager) error {
 	return controllerruntime.NewControllerManagedBy(mgr).For(&workv1alpha1.Work{}).WithEventFilter(c.PredicateFunc).Complete(c)
+}
+
+func restoreNamespace(clusterObj *unstructured.Unstructured) *unstructured.Unstructured {
+	robj := clusterObj.DeepCopy()
+	robj.SetNamespace("default")
+	return robj
 }
