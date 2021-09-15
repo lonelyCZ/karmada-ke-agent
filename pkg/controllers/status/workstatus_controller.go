@@ -343,7 +343,7 @@ func (c *WorkStatusController) getRawManifest(manifests []workv1alpha1.Manifest,
 			return manifest, nil
 		}
 
-		klog.Infof("Not Match: manifest namespaceName: %s/%s, clusterObj namespaceName: %s/%s",
+		klog.Infof("[Debug]: Not Match: manifest namespaceName: %s/%s, clusterObj namespaceName: %s/%s",
 			manifest.GetNamespace(), manifest.GetName(), clusterObj.GetNamespace(), clusterObj.GetName())
 	}
 
