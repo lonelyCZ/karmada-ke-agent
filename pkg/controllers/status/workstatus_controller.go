@@ -114,6 +114,7 @@ func (c *WorkStatusController) RunWorkQueue() {
 
 // syncWorkStatus will collect status of object referencing by key and update to work which holds the object.
 func (c *WorkStatusController) syncWorkStatus(key util.QueueKey) error {
+	klog.Infof("[Debug]: syncWorkStatus is waiting for key")
 	fedKey, ok := key.(keys.FederatedKey)
 	if !ok {
 		klog.Errorf("Failed to sync status as invalid key: %v", key)
