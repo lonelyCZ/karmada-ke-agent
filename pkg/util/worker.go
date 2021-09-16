@@ -101,6 +101,7 @@ func getClusterNameFromLabel(resource *unstructured.Unstructured) (string, error
 
 func (w *asyncWorker) EnqueueRateLimited(obj runtime.Object) {
 	key, err := w.keyFunc(obj)
+	klog.Infof("[Debug]: Get key for event:%v", key)
 	if err != nil {
 		klog.Warningf("Failed to generate key for obj: %s", obj.GetObjectKind().GroupVersionKind())
 		return
@@ -109,7 +110,7 @@ func (w *asyncWorker) EnqueueRateLimited(obj runtime.Object) {
 	if key == nil {
 		return
 	}
-
+	klog.Infof("[Debug]: Get event for obj gvk: %s", obj.GetObjectKind().GroupVersionKind().String())
 	w.AddRateLimited(key)
 }
 
